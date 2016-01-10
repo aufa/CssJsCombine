@@ -370,23 +370,31 @@ class CssJsCombine
         }
 
         // remove comments
-        $cssText = preg_replace('%(?sx)(\"(?:[^\"\\\\]++|\\\\.)*+"| \'(?:[^\'\\\\]++|\\\\.)*+\')|/\* (?> .*? \*/ )%', '$1', $cssText);
-        $regex = '(?six)("(?:[^"\\\\]++|\\\\.)*+"|\'(?:[^\'\\\\]++|\\\\.)*+\')
-                | \s*+ ; \s*+ ( } ) \s*+
-                | \s*+ ( [*$~^|]?+= | [{};,>~+-] | !important\b ) \s*+
-                | ( [[(:] ) \s++
-                | \s++ ( [])] )
-                | \s++ ( : ) \s*+
+        $cssText = preg_replace('/(^\s*|\s*$|\/\*(?:(?!\*\/)[\s\S])*\*\/|[\r\n\t]+)/', '', $cssText);
+        // remove multi twice characters into 3 characters sequence eg : #ffddee to #fde
+        $cssText = preg_replace(
+            '/(#(?:([a-f]|[A-F]|[0-9]){1}(?:\\2)([a-f]|[A-F]|[0-9]){1}(?:\\3))([a-f]|[A-F]|[0-9]){1}(?:\\4))\b/',
+            '#$2$3$4',
+            $cssText
+        );
+        $regex = '(?six)
+                  \s*+;\s*(})\s*
+                | \s*([*$~^|]?=|[{};,>~+-]|\s+!important\b)\s*
+                | ([[(:])\s+
+                | \s+([\]\)])
+                | \s+(:)\s+
                 (?!
                     (?>
                         [^{}"\']++
-                        | "(?:[^"\\\\]++|\\\\.)*+"
-                        | \'(?:[^\'\\\\]++|\\\\.)*+\' 
-                    )*+
+                        | \"(?:[^"\\\\]++|\\\\.)*\"
+                        | \'(?:[^\'\\\\]++|\\\\.)*\' 
+                    )*
                     {
                 )
-                | ^ \s++ | \s++ \z
-                | (\s)\s+';
+                | ^\s+|\s+ \z
+                | (\s)\s+
+                | (\#((?:[a-f]|[A-F]|[0-9]){3}))(?:\\2)?\b # replace same value hex digit to 3 character eg : #ffffff to #fff
+                ';
 
         /**
          * Fix css url('statmenturi/');
