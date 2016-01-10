@@ -13,9 +13,14 @@
  *     - YII2
  *     - and many more by our project need
  *
+ * tested javascript file :
+ *     - jquery.min.js
+ *     - https://platform.twitter.com/widgets.js
+ *     - jquery-migrate.min.js
+ *
  * inspire and use some code from :
  *     JShrink by - Robert Hafner <tedivm@tedivm.com>
- *     @see  {https://github.com/tedious/JShrink}
+ *     @see {https://github.com/tedious/JShrink}
  *
  * The script is for combine and getting aso minifying assets Javascript and CSS
  * The script handle and minify css and javascript and combining multiple files
@@ -32,6 +37,13 @@
  * @version 1.0
  * @author  awan <nawa@yahoo.com>
  * @license GPL3/+
+ *          & minifier code has license by author itself @link {https://github.com/tedious/JShrink}
+ * @revision :
+ *           January 10 2016 GMT+7 :
+ *               - Change internal functions , for conflist handle comment multiple line below
+ *               - Remove Method processOneLineComments()
+ *               - Remove Method processMultiLineComments()
+ *               
  */
 
 /**
@@ -308,11 +320,13 @@ class CssJsCombine
                     }
                 } else {
                     if ($use_http) {
-                        $ctx = stream_context_create(array('http'=>
+                        $ctx = stream_context_create(
                             array(
-                                'timeout' => 10,  // 10 seconds has very very long time!!
+                                'http'=> array(
+                                    'timeout' => 10,  // 10 seconds has very very long time!!
+                                )
                             )
-                        ));
+                        );
                         $retval = @file_get_contents($files_to_read, false, $ctx);
                     } else {
                         $retval = @file_get_contents($files_to_read, false);
@@ -511,6 +525,13 @@ class CssJsCombine
         $this->cleanAll();
 
         /**
+         * Getting Real comment from input JS
+         */
+        if ($allowed_conditional_comment) {
+            preg_match_all('%\s*/\*\!(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*/%', $js, $match_all);
+        }
+
+        /**
          * Doing progress
          */
         $js = $this->lock($js);
@@ -527,29 +548,70 @@ class CssJsCombine
          * @var string
          */
         $first_comment = '';
-        if ($use_first_comment && preg_match('%^\s*/\*(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', $js, $match)
+        if ($use_first_comment && ! $allowed_conditional_comment
+            && preg_match('%^\s*/\*(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', $js, $match)
             && !empty($match[0])
         ) {
             $first_comment = trim($match[0])."\n";
             unset($match);
         }
+
         // freed the memory
         unset($js);
 
         // remove comments if not allowed conditional comment
         if (! $allowed_conditional_comment) {
             $this->all_cached = preg_replace('/(?:(?:\/\*(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/', '$1', $this->all_cached);
+        } else {
+            /**
+             * Remove Non conditional comments
+             */
+            $this->all_cached = preg_replace(
+                '/(?:(?:\/\*(?!\!)(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/',
+                '$1',
+                $this->all_cached
+            );
+
+            /**
+             * Replace with real comments from @match_all from !Getting Real comment from input JS!
+             */
+            $this->all_cached = preg_replace_callback('%(\s*/\*\!(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*/)%', function($c) use($match_all) {
+                static $d = 0;
+                // by default use empty
+                $text = '';
+                if (!empty($match_all) && isset($match_all[0][$d])) {
+                    $match_all[0][$d] = ltrim($match_all[0][$d]);
+                    $spaced = null;
+                    if (preg_match('/(?!\/\*\!)\n(\s+?)\*/', $match_all[0][$d], $m) && !empty($m[1])) {
+                        $spaced = str_repeat(' ', strlen($m[1])-1);
+                    }
+                    $text = "\n{$spaced}{$match_all[0][$d]}";
+                    $d++;
+                    if (count($match_all[0]) <= $d) {
+                        $d = 0;
+                    }
+                }
+
+                return $text;
+            }, $this->all_cached);
+            // unset
+            unset($match_all);
         }
 
         /**
-         * Sanitized and and minfiy it!
+         * Sanitized and and minify it!
          */
-        $this->all_cached = preg_replace("/(\n)+/",'$1', $this->all_cached);
+        // remove multiple new line
+        $this->all_cached = preg_replace("/(\n)+/","\n", $this->all_cached);
+        // remove newline on brackets
         $this->all_cached = preg_replace("/\n?(\{|\})\n?/",'$1', $this->all_cached);
-        $this->all_cached = preg_replace('/;\s*\}|\s*}\s*/', '}', $this->all_cached);
-        $this->all_cached = preg_replace('/;\n/', ';', $this->all_cached);
+        // remove semicolon inside before brackets not in regex or quote(s)
+        $this->all_cached = preg_replace('/(?>(?!\'|\"|\/));\s*\}|\s*}\s*/', '}', $this->all_cached);
+        // remove new line after semicolon
+        $this->all_cached = preg_replace('/;\n(?!\s*\/\*)/', ';', $this->all_cached);
+
         /**
-         * If position of ouput on first statments is it will be exec fix clean
+         * If position of ouput on first statements is it will be exec fix clean
          * comments
          */
         if (strpos(trim($this->all_cached), '/*!') === 0) {
@@ -557,15 +619,7 @@ class CssJsCombine
         }
 
         /**
-         * If allowed conditional comment fix replace inside of
-         */
-        if ($allowed_conditional_comment) {
-            $this->all_cached = preg_replace("/(\/\*\!)/", "\n$1", $this->all_cached);
-            $this->all_cached = preg_replace("/\n *\*/m", "\n*", $this->all_cached);
-        }
-
-        /**
-         * Trim outut result
+         * Trim output result
          */
         $this->all_cached = trim($this->all_cached);
         return $first_comment.$this->all_cached;
@@ -637,7 +691,15 @@ class CssJsCombine
      */
     protected function loop()
     {
+        // exec this
+        if ($this->is_failed) {
+            return null;
+        }
         while ($this->index_a !== false && !is_null($this->index_a) && $this->index_a !== '') {
+            // exec this
+            if ($this->is_failed) {
+                return null;
+            }
             switch ($this->index_a) {
                 // new lines
                 case "\n":
@@ -654,7 +716,6 @@ class CssJsCombine
                         break;
 
                 // otherwise we treat the newline like a space
-
                 case ' ':
                     if($this->isAlphaNumeric($this->index_b)) {
                         $this->all_cached .=  $this->index_a;
@@ -679,8 +740,9 @@ class CssJsCombine
                             break;
 
                         case ' ':
-                            if(!$this->isAlphaNumeric($this->index_a))
+                            if(!$this->isAlphaNumeric($this->index_a)) {
                                 break;
+                            }
 
                         default:
                             // check for some regex that breaks stuff
@@ -732,6 +794,22 @@ class CssJsCombine
     }
 
     /**
+     * This function gets the next "real" character. It is essentially a wrapper
+     * around the getChar function that skips comments. This has significant
+     * performance benefits as the skipping is done using native functions (ie,
+     * c code) rather than in script php.
+     *
+     *
+     * @return string            Next 'real' character to be processed.
+     */
+    protected function getReal()
+    {
+        $startIndex_position = $this->index_position;
+        // we does not need to remove comments will be handle by minifier
+        return $this->getChar();
+    }
+
+    /**
      * Returns the next string for processing based off of the current index_position.
      *
      * @return string
@@ -765,126 +843,6 @@ class CssJsCombine
         return $char;
     }
 
-    /**
-     * This function gets the next "real" character. It is essentially a wrapper
-     * around the getChar function that skips comments. This has significant
-     * performance benefits as the skipping is done using native functions (ie,
-     * c code) rather than in script php.
-     *
-     *
-     * @return string            Next 'real' character to be processed.
-     * @throws \RuntimeException
-     */
-    protected function getReal()
-    {
-        $startIndex_position = $this->index_position;
-        $char = $this->getChar();
-
-        // Check to see if we're potentially in a comment
-        if ($char !== '/') {
-            return $char;
-        }
-
-        $this->index_c = $this->getChar();
-
-        if ($this->index_c == '/') {
-            return $this->processOneLineComments($startIndex_position);
-        } elseif ($this->index_c == '*') {
-            return $this->processMultiLineComments($startIndex_position);
-        }
-
-        return $char;
-    }
-
-    /**
-     * Removed one line comments, with the exception of some very specific types of
-     * conditional comments.
-     *
-     * @param  int    $startIndex_position The index_position point where "getReal" function started
-     * @return string
-     */
-    protected function processOneLineComments($startIndex_position)
-    {
-        $thirdCommentString = substr($this->index_input, $this->index_position, 1);
-
-        // kill rest of line
-        $this->getNext("\n");
-
-        if ($thirdCommentString == '@') {
-            $endPoint = ($this->index_position) - $startIndex_position;
-            unset($this->index_c);
-            $char = "\n" . substr($this->index_input, $startIndex_position, $endPoint);
-        } else {
-            // first one is contents of $this->index_c
-            $this->getChar();
-            $char = $this->getChar();
-        }
-
-        return $char;
-    }
-
-    /**
-     * Skips multiline comments where appropriate, and includes them where needed.
-     * Conditional comments and "license" style blocks are preserved.
-     *
-     * @param  int               $startIndex_position The index_position point where "getReal" function started
-     * @return bool|string       False if there's no character
-     * @throws \RuntimeException Unclosed comments will throw an error
-     */
-    protected function processMultiLineComments($startIndex_position)
-    {
-        if ($this->is_failed) {
-            return null;
-        }
-
-        $this->getChar(); // current C
-        $thirdCommentString = $this->getChar();
-
-        // kill everything up to the next */ if it's there
-        if ($this->getNext('*/')) {
-
-            $this->getChar(); // get *
-            $this->getChar(); // get /
-            $char = $this->getChar(); // get next real character
-
-            // Now we reinsert conditional comments and YUI-style licensing comments
-            if (($thirdCommentString == '!') || ($thirdCommentString == '@') ) {
-
-                // If conditional comments or flagged comments are not the first thing in the script
-                // we need to echo a and fill it with a space before moving on.
-                if ($startIndex_position > 0) {
-                    $this->all_cached .= $this->index_a;
-                    $this->index_a = " ";
-
-                    // If the comment started on a new line we let it stay on the new line
-                    if ($this->index_input[($startIndex_position - 1)] == "\n") {
-                        $this->all_cached .= "\n";
-                    }
-                }
-
-                $endPoint = ($this->index_position - 1) - $startIndex_position;
-                $this->all_cached .= substr($this->index_input, $startIndex_position, $endPoint);
-
-                return $char;
-            }
-
-        } else {
-            $char = false;
-        }
-
-        if($char === false) {
-            $this->is_failed = true;
-            $this->error_log[] = ('Unclosed multiline comment at position: ' . ($this->index_position - 2));
-            return null;
-        }
-
-        // if we're here c is part of the comment and therefore tossed
-        if(isset($this->index_c)) {
-            unset($this->index_c);
-        }
-
-        return $char;
-    }
 
     /**
      * Pushes the index_position ahead to the next instance of the supplied string. If it
@@ -919,8 +877,6 @@ class CssJsCombine
     /**
      * When a javascript string is detected this function crawls for the end of
      * it and saves the whole string.
-     *
-     * @throws \RuntimeException Unclosed strings will throw an error
      */
     protected function saveString()
     {
@@ -1001,8 +957,6 @@ class CssJsCombine
     /**
      * When a regular expression is detected this function crawls for the end of
      * it and saves the whole regex.
-     *
-     * @throws \RuntimeException Unclosed regex will throw an error
      */
     protected function saveRegex()
     {
