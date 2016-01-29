@@ -17,6 +17,7 @@
  *     - jquery.min.js
  *     - https://platform.twitter.com/widgets.js
  *     - jquery-migrate.min.js
+ *     - jquery-ui.min.js
  *
  * inspire and use some code from :
  *     JShrink by - Robert Hafner <tedivm@tedivm.com>
@@ -516,7 +517,7 @@ class CssJsCombine
         if (!is_string($js) || !trim($js)) {
             return false;
         }
-        
+
         /**
          * Clean the cached string
          * this method use clean all
@@ -528,7 +529,12 @@ class CssJsCombine
          * Getting Real comment from input JS
          */
         if ($allowed_conditional_comment) {
+            // remove comments non conditional
+            $js = preg_replace('%\s*/\*(?![\!])(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', '', $js);
             preg_match_all('%\s*/\*\!(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*/%', $js, $match_all);
+        } else {
+            // remove comments
+            $js = preg_replace('%\s*/\*(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', '', $js);
         }
 
         /**
@@ -558,20 +564,10 @@ class CssJsCombine
 
         // freed the memory
         unset($js);
-
         // remove comments if not allowed conditional comment
         if (! $allowed_conditional_comment) {
             $this->all_cached = preg_replace('/(?:(?:\/\*(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/', '$1', $this->all_cached);
         } else {
-            /**
-             * Remove Non conditional comments
-             */
-            $this->all_cached = preg_replace(
-                '/(?:(?:\/\*(?!\!)(?:[^*]|(?:\*+[^*\/]))*\*+\/)|(?:(?<!\:|\\\|\'|\")\/\/.*))/',
-                '$1',
-                $this->all_cached
-            );
-
             /**
              * Replace with real comments from @match_all from !Getting Real comment from input JS!
              */
@@ -601,14 +597,43 @@ class CssJsCombine
         /**
          * Sanitized and and minify it!
          */
-        // remove multiple new line
-        $this->all_cached = preg_replace("/(\n)+/","\n", $this->all_cached);
         // remove newline on brackets
-        $this->all_cached = preg_replace("/\n?(\{|\})\n?/",'$1', $this->all_cached);
-        // remove semicolon inside before brackets not in regex or quote(s)
-        $this->all_cached = preg_replace('/(?>(?!\'|\"|\/));\s*\}|\s*}\s*/', '}', $this->all_cached);
+        $this->all_cached = preg_replace(
+            "/\n?(\{|\})\n?(?!\/\*!)/",
+            '$1',
+            // remove multiple new line
+            str_replace(
+                "\n\n",
+                "\n",
+                $this->all_cached
+            )
+        );
+
         // remove new line after semicolon
-        $this->all_cached = preg_replace('/;\n(?!\s*\/\*)/', ';', $this->all_cached);
+        $this->all_cached = preg_replace(
+            '/;\n(?!\s*\/\*)/',
+            ';',
+            // remove semicolon inside before brackets not in regex or quote(s)
+            preg_replace(
+                '/(?>(?!\'|\"|\/));\s*\}|\s*}\s*/',
+                '}',
+                $this->all_cached
+            )
+        );
+
+        // if not allowed conditional comments
+        // use str replace for fast method
+        if (! $allowed_conditional_comment) {
+            $this->all_cached = str_replace(
+                array("-\n", "+\n", ":\n", "\n["),
+                array('-','+',':','['),
+                $this->all_cached
+            );
+        } else {
+            // remove new line in -+;[ not in comment
+            $this->all_cached = preg_replace('/(?>(?!\/\*))([\-\+\:])\n/', '$1', $this->all_cached);
+            $this->all_cached = preg_replace('/(?>(?!\/\*))\n\[/', '[', $this->all_cached);
+        }
 
         /**
          * If position of ouput on first statements is it will be exec fix clean
@@ -668,9 +693,17 @@ class CssJsCombine
         }
 
         // $this->options = array_merge($this->$defaultOptions, $options);
-        $js = str_replace("\r\n", "\n", $js);
-        $this->index_input = str_replace("\r", "\n", $js);
+        $this->index_input = str_replace("\r\n", "\n", $js);
+        // freed memory
+        unset($js);
+        // match it first for double slash
+        if (strpos($this->index_input, '//')) {
+            // remove comments double slash
+            // fixed for error literal
+            $this->index_input = preg_replace('/(?:(?>(?!\/\*))(?<!\:|\\\|\'|\")\/\/.+\n)/', '', $this->index_input);
+        }
 
+        $this->index_input = str_replace("\r", "\n", $this->index_input);
         // We add a newline to the end of the script to make it easier to deal
         // with comments at the bottom of the script- this prevents the unclosed
         // comment error that can otherwise occur.
@@ -778,7 +811,6 @@ class CssJsCombine
         $this->index_a   = $this->index_b = '';
         $this->index_c   = null;
         $this->is_failed = false;
-        $this->index_locks = array();
     }
 
     /**
@@ -789,6 +821,7 @@ class CssJsCombine
     public function cleanAll()
     {
         $this->cleanCached();
+        $this->index_locks = array();
         $this->all_cached = null;
         $this->error_log = array();
     }
