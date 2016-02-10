@@ -193,7 +193,7 @@ class CssJsCombine
      * @param  string $base_directory root directory of script execute / web root
      * @param  string $base_url       root url / base url or web root URI
      */
-    public function cssJsCombine()
+    public function __construct()
     {
         // base directory
         // on CI use FCPATH for Root path but we have fix with our method (:
