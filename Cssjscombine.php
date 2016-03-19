@@ -1299,7 +1299,7 @@ class CssJsCombine
                     !empty($_SERVER['CONTEXT_DOCUMENT_ROOT'])
                     ? realpath($_SERVER['CONTEXT_DOCUMENT_ROOT'])
                     : substr(
-                        rtrim(self::currentRootpath(), '/'),
+                        rtrim($this->currentRootpath(), '/'),
                         0,
                         -(rtrim(
                             strlen(
@@ -1309,7 +1309,7 @@ class CssJsCombine
                         )
                     )
                 );
-                $root = rtrim(self::cleanSlashed(($directory)), '/');
+                $root = rtrim($this->cleanSlashed(($directory)), '/');
          }
 
         return $root;
