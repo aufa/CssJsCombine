@@ -34,7 +34,7 @@
  *
  * Donation via @paypal are wellcome -> nawa@yahoo.com
  *
- * @package CSSJSMinifierCombiner
+ * @package CssJsCombine
  * @version 1.0
  * @author  awan <nawa@yahoo.com>
  * @license GPL3/+
@@ -44,7 +44,14 @@
  *               - Change internal functions , for conflist handle comment multiple line below
  *               - Remove Method processOneLineComments()
  *               - Remove Method processMultiLineComments()
- *               
+ *
+ *           March 19 2016 GMT+7 :
+ *               - fix use comment parameter that invalid called on combine()
+ *               - fix camelcase call combine onmethod combine() array
+ *               - make comment more neat
+ *               - fix invalid comment @package & some invalid comments
+ *               - add magic method __destruct()
+ *
  */
 
 /**
@@ -106,6 +113,7 @@ class CssJsCombine
      *     this contains regex , please dont use modifier here!
      *     eg: if want to add regex ignore all with minified
      *         just set => (.+).min.js
+     *
      * @var array
      */
     protected $ignored_js_minify = array(
@@ -120,7 +128,8 @@ class CssJsCombine
     protected $index_input;
 
     /**
-     * Ceched Proccess
+     * Cached Proccess
+     *
      * @var null
      */
     protected $all_cached = null;
@@ -165,24 +174,28 @@ class CssJsCombine
     /**
      * Just aditional resouce record to prevent 
      * Throws error
+     *
      * @var boolean
      */
     protected $is_failed = false;
 
     /**
      * Base directory (eg root path of script executed for the right uses)
+     *
      * @var string
      */
     protected $base_directory = null;
 
     /**
      * Base URL of site
+     *
      * @var string
      */
     protected $base_url = null;
 
     /**
      * Error Logs
+     *
      * @var  array
      */
     protected $error_log = array();
@@ -190,6 +203,7 @@ class CssJsCombine
     /**
      * This like a __construct()
      * change this into __construct($base_directory = null, $base_url = null)
+     *
      * @param  string $base_directory root directory of script execute / web root
      * @param  string $base_url       root url / base url or web root URI
      */
@@ -203,6 +217,7 @@ class CssJsCombine
 
     /**
      * Set base URL
+     *
      * @param  string $base_url root url / base url or web root URI
      */
     public function setBaseUrl($base_url)
@@ -212,6 +227,7 @@ class CssJsCombine
 
     /**
      * Set Base directory
+     *
      * @param  string $base_directory root directory of script execute / web root
      */
     public function setBaseDirectory($base_directory)
@@ -221,6 +237,7 @@ class CssJsCombine
 
     /**
      * Add regex filename to ignored
+     *
      * @param  string $value regex
      */
     public function addJsFileNameIgnoredRegex($value)
@@ -250,6 +267,7 @@ class CssJsCombine
 
     /**
      * Remove regex files to ignored
+     *
      * @param  string $value regex as key
      */
     public function removeJsFileNameIgnoredRegex($value)
@@ -272,7 +290,7 @@ class CssJsCombine
      * @param  array|string     $files_to_read                 ful path or url to geti minified and combine it
      * @param  bool             $use_first_comment             show first comment to print into output
      * @param  bool             $allowed_conditional_comment   show conditional comment start with /*! on javascript will be ignored to replaced
-     * @return bool|string
+     * @return string
      */
     public function combine(
         $files_to_read = null,
@@ -282,7 +300,7 @@ class CssJsCombine
         if (is_array($files_to_read)) {
             foreach ($files_to_read as $key => $value) {
                 unset($files_to_read[$key]);
-                if (is_string($value) && trim($value) && $tasked = $this->Combine(
+                if (is_string($value) && trim($value) && $tasked = $this->combine(
                         $value,
                         $use_first_comment,
                         $allowed_conditional_comment
@@ -343,8 +361,8 @@ class CssJsCombine
                     }
 
                     return $ext == 'js'
-                        ? $this->internalMinifyJS($retval, $use_first_comment)
-                        : $this->internalFixCSS($this->minifyCss($retval, $use_first_comment), $files_to_read);
+                        ? $this->internalMinifyJS($retval, $use_first_comment, $allowed_conditional_comment)
+                        : $this->internalFixCSS($this->minifyCss($retval, $use_first_comment, $allowed_conditional_comment), $files_to_read);
                 }
             }
 
@@ -361,6 +379,7 @@ class CssJsCombine
 
     /**
      * Minify css
+     *
      * @param  string  $cssText           css to minify
      * @param  boolean $use_first_comment put first comment of css for informational only
      * @param  string  $url_replacer      url assets directory placed
@@ -423,6 +442,7 @@ class CssJsCombine
 
     /**
      * Fix css url path that enclosed with ../ to better uses
+     *
      * @param  string $text css text
      * @param  string $path url assets directory placed
      * @return string           sanitized css
@@ -453,7 +473,8 @@ class CssJsCombine
 
     /**
      * Fix css url path that enclosed with ../ to better uses
-     *     This methdo for internakl Use Only
+     *     This method for internakl Use Only
+     *
      * @access private
      * @param  string $text css text
      * @param  string $path path to css file / full path
@@ -526,6 +547,19 @@ class CssJsCombine
         $this->cleanAll();
 
         /**
+         * Getting first comment if available and allow to print out
+         * @var string
+         */
+        $first_comment = '';
+        if ($use_first_comment && ! $allowed_conditional_comment
+            && preg_match('%^\s*/\*(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', $js, $match)
+            && !empty($match[0])
+        ) {
+            $first_comment = trim($match[0])."\n";
+            unset($match);
+        }
+
+        /**
          * Getting Real comment from input JS
          */
         if ($allowed_conditional_comment) {
@@ -549,19 +583,6 @@ class CssJsCombine
             return false;
         }
 
-        /**
-         * Getting first comment if available and allow to print out
-         * @var string
-         */
-        $first_comment = '';
-        if ($use_first_comment && ! $allowed_conditional_comment
-            && preg_match('%^\s*/\*(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', $js, $match)
-            && !empty($match[0])
-        ) {
-            $first_comment = trim($match[0])."\n";
-            unset($match);
-        }
-
         // freed the memory
         unset($js);
         // remove comments if not allowed conditional comment
@@ -577,11 +598,19 @@ class CssJsCombine
                 $text = '';
                 if (!empty($match_all) && isset($match_all[0][$d])) {
                     $match_all[0][$d] = ltrim($match_all[0][$d]);
-                    $spaced = null;
-                    if (preg_match('/(?!\/\*\!)\n(\s+?)\*/', $match_all[0][$d], $m) && !empty($m[1])) {
-                        $spaced = str_repeat(' ', strlen($m[1])-1);
+                    $ex = explode("\n", $match_all[0][$d]);
+                    foreach ($ex as $key => $value) {
+                        $val = ltrim($value);
+                        if (substr($val, 0, 2) == '/*') {
+                            $ex[$key] = "{$val}";
+                        } elseif (substr($val, 0, 1) == '*') {
+                            $ex[$key] = " {$val}";
+                        } else {
+                            $ex[$key] = " *{$val}";
+                        }
                     }
-                    $text = "\n{$spaced}{$match_all[0][$d]}";
+                    $match_all[0][$d] = implode("\n", $ex);
+                    $text = "\n{$match_all[0][$d]}";
                     $d++;
                     if (count($match_all[0]) <= $d) {
                         $d = 0;
@@ -599,7 +628,7 @@ class CssJsCombine
          */
         // remove newline on brackets
         $this->all_cached = preg_replace(
-            "/\n?(\{|\})\n?(?!\/\*!)/",
+            "/\n?(\{|\})(?:(?:\n(?![ ]+))?|(\n\s*)?)(?!\/\*\!)/", # fix regex
             '$1',
             // remove multiple new line
             str_replace(
@@ -1092,6 +1121,7 @@ class CssJsCombine
      *                           HELPER                             |
      * -------------------------------------------------------------+
      */
+
     /**
      * Geting error Logs record if exists
      *
@@ -1172,7 +1202,7 @@ class CssJsCombine
     }
 
     /**
-     * Clan Invalid Slashed to be only one slashed on separate
+     * Clean Invalid Slashed to be only one slashed on separate
      *
      * @param  mixed $path  path to be cleaned
      */
@@ -1201,13 +1231,16 @@ class CssJsCombine
 
     /**
      * Checking current request File as Root path
+     *
      * @return string base directory of root path
      */
     public function currentRootpath()
     {
         static $root;
         if (!$root) {
-            $root =  $this->cleanSlashed(dirname($_SERVER['SCRIPT_FILENAME']));
+            $root =  $this->cleanSlashed(
+                realpath(dirname($_SERVER['SCRIPT_FILENAME']))
+            );
         }
         return $root;
     }
@@ -1252,6 +1285,7 @@ class CssJsCombine
 
     /**
      * get DOCUMENT_ROOT of the web
+     *     Fix symlink @uses realpath() -> follow symlink
      *
      * @return  string path document root
      */
@@ -1263,14 +1297,19 @@ class CssJsCombine
                 ? realpath($_SERVER['DOCUMENT_ROOT'])
                 : (
                     !empty($_SERVER['CONTEXT_DOCUMENT_ROOT'])
-                    ? $_SERVER['CONTEXT_DOCUMENT_ROOT']
-                    :  substr(
-                        rtrim($this->currentRootpath(), '/'),
+                    ? realpath($_SERVER['CONTEXT_DOCUMENT_ROOT'])
+                    : substr(
+                        rtrim(self::currentRootpath(), '/'),
                         0,
-                        -(rtrim(strlen(dirname($_SERVER['SCRIPT_NAME'])), '/'))
+                        -(rtrim(
+                            strlen(
+                                realpath(dirname($_SERVER['SCRIPT_NAME']))
+                            ),
+                            '/')
+                        )
                     )
                 );
-                $root = rtrim($this->cleanSlashed($directory), '/');
+                $root = rtrim(self::cleanSlashed(($directory)), '/');
          }
 
         return $root;
@@ -1279,6 +1318,7 @@ class CssJsCombine
     /**
      * Geting path after Document root Path , this will be shown after
      *     Root path only
+     *
      * @param  string $path the path to be clean, make sure to get right values
      *                      checking path (path) must be check on after root path
      * @return string       if match path with root path
@@ -1293,5 +1333,14 @@ class CssJsCombine
         }
 
         return null;
+    }
+
+    /**
+     * PHP5 Magic Method after class closed
+     */
+    public function __destruct()
+    {
+        // doing clean
+        $this->cleanAll();
     }
 }
