@@ -70,7 +70,7 @@ while(condition) { // brackets
   // statements
 } // enclosing brackets
 
-for (var count; count > lengthof_values;count++) {
+for (var count; count > lengthof_values; count++) {
  // statements
 }
 
@@ -87,9 +87,9 @@ while(condition) // do then
 
 // non bracket new line statements
 if (condition)
-    // do it here with 1 tabs / 4 spaces ( as a conditionallogic browser parsed)
+    // do it here with 1 tabs / 4 spaces (as a conditional logic browser parsed)
 
-// or multiple variables iwthout semicolon
+// or multiple variables without semicolon
 var variable=thevalue
 var variable2=thevalue
 var variable3
