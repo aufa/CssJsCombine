@@ -43,3 +43,56 @@ inspire and use some code from :
 ### Requirements
 
 * PHP 5.3.2x or later
+
+###NOTE
+Not all javascript properly parsed !eg `bootstrap.js` that use non standar coding.
+this combiner & minifer working properly when javascript write with coding standard eg:
+
+```js
+/**
+ * condition
+ */
+if (conditions) { //brackets
+ // statement
+} // enclosing brackets
+
+/**
+ * Variables
+ */
+var variable = the_values; // endof semicolon
+var variable = the_values,
+    next_variable = the_values,
+    next_variables; // end with semicolon
+/**
+ * Loop
+ */
+while(condition) { // brackets
+  // statements
+} // enclosing brackets
+
+for (var count; count > lengthof_values;count++) {
+ // statements
+}
+
+```
+
+and maybe not working properly if you use multiple statements mixed ( variable, conditional etc. without standards of scripts)
+eg :
+```js
+// 1 line conditional
+if (condition) var variable=values
+
+// 1 line loop
+while(condition) // do then
+
+// non bracket new line statements
+if (condition)
+    // do it here with 1 tabs / 4 spaces ( as a conditionallogic browser parsed)
+
+// or multiple variables iwthout semicolon
+var variable=thevalue
+var variable2=thevalue
+var variable3
+// and execute code in here
+
+```
