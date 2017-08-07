@@ -116,9 +116,9 @@ class CssJsCombine
 	 *
 	 * @var array
 	 */
-	protected $ignored_js_minify = array(
+	protected $ignored_js_minify = [
 		// '(.+).min.js' => true, # no for min for example
-	);
+	];
 
 	/**
 	 * The index_input javascript to be minified.
@@ -169,7 +169,7 @@ class CssJsCombine
 	 *
 	 * @var array
 	 */
-	protected $index_locks = array();
+	protected $index_locks = [];
 
 	/**
 	 * Just additional resource record to prevent
@@ -198,7 +198,7 @@ class CssJsCombine
 	 *
 	 * @var  array
 	 */
-	protected $error_log = array();
+	protected $error_log = [];
 
 	/**
 	 * CssJsCombine constructor.
@@ -258,7 +258,7 @@ class CssJsCombine
 	 */
 	public function clearJsFileIgnoredRegex()
 	{
-		$this->ignored_js_minify = array();
+		$this->ignored_js_minify = [];
 	}
 
 	/**
@@ -318,7 +318,7 @@ class CssJsCombine
 			    || true
 			) {
 				$ext = strtolower(pathinfo($files_to_read, PATHINFO_EXTENSION));
-				if (!in_array($ext, array('js', 'css'))) {
+				if (!in_array($ext, ['js', 'css'])) {
 					return null;
 				}
 
@@ -336,11 +336,11 @@ class CssJsCombine
 				} else {
 					if ($use_http) {
 						$ctx = stream_context_create(
-							array(
-								'http'=> array(
+							[
+								'http'=> [
 									'timeout' => 10,  // 10 seconds has very very long time!!
-								)
-							)
+								]
+							]
 						);
 						$retVal = @file_get_contents($files_to_read, false, $ctx);
 					} else {
@@ -451,12 +451,55 @@ class CssJsCombine
 		}
 		if (preg_match('/url\(.+?\)/i', $text)) {
 			$ci   = $this;
-			$text = preg_replace_callback('/url\((.+?)\)/ixm', function ($c) use($path, $ci) {
+			$text = preg_replace_callback('/url\((.+?)\)/ixm', function ($c) use ($path, $ci) {
 				$detach = trim(trim($c[1]), '\'"');
 				if (!preg_match('/^(https?:)?\/\//i', $detach)) {
 					$detach = preg_replace('/(\/|\\\)+/', '/', $detach);
+					$isAll = strpos($path, '//') === 0;
+					$urlArray = parse_url($path);
+					if (strpos($detach, '../') !== false) {
+						$path = isset( $urlArray['path'] ) && trim( $urlArray['path'], '/' ) != ''
+							? trim( $urlArray['path'], '/' )
+							: null;
+						if ( $path ) {
+							$path      = preg_replace( '/(\\\|\/)+/', '/', $path );
+							$pathArray = explode('/', $path );
+							$detachArray = explode('../', $detach);
+							foreach ($detachArray as $value) {
+								if (!$value) {
+									array_shift($detachArray);
+									array_pop($pathArray);
+									break;
+								}
+								break;
+							}
+							$detach = implode('/', $detachArray);
+							$urlArray['path'] = ltrim(implode('/', $pathArray), '/');
+							$path = isset($urlArray['scheme'])
+								? $urlArray['scheme'] .'://'
+								: ($isAll ? '//' : '');
+							$path .= isset($urlArray['host']) ?  $urlArray['host'] : '';
+							$path .= isset($urlArray['port']) ?  ':'.$urlArray['post'] : '';
+							$path .= $urlArray['path'] ? '/'.$urlArray['path'] : '';
+							$query = isset($urlArray['query']) ? "?{$urlArray['query']}" : '';
+						}
+					}
+
 					$c[0] = rtrim($path, '/').'/'.ltrim($detach, '/');
 					$c[0] = strpos($c[0], '\'') !== false ? json_encode("{$c[0]}") : "'{$c[0]}'";
+					if (!empty($query)) {
+						if (strpos($c[0], '?') !== false) {
+							$ex   = explode('?', $query);
+							$y = array_shift($ex);
+							$im = implode('?', $ex);
+							$query = strpos($im, '#') === 0
+								? $query . $im
+								: $query .'&'.$im;
+							$c[0] = $y. $query;
+						} else {
+							$c[0] .= $query;
+						}
+					}
 					$c[0] = "url({$c[0]})";
 				}
 				return $c[0];
@@ -482,7 +525,7 @@ class CssJsCombine
 		}
 		if (preg_match('/url\(.+?\)/i', $text)) {
 			$ci   = $this;
-			$text = preg_replace_callback('/url\((.+?)\)/ixm', function ($c) use($path, $ci) {
+			$text = preg_replace_callback('/url\((.+?)\)/ixm', function ($c) use ($path, $ci) {
 				$detach = trim(trim($c[1]), '\'"');
 				if (!preg_match('/^(https?:)?\/\//i', $detach)) {
 					$base_url   = $ci->base_url;
@@ -493,7 +536,6 @@ class CssJsCombine
 					$c[0] = preg_replace(
 						'/^https?:\/\//i',
 						'',
-
 						// base URL
 						// take from base URL of CI
 						trim(rtrim($base_url, '/').'/'.(trim($detach_dir, '/').'/'.basename($detach)))
@@ -564,7 +606,7 @@ class CssJsCombine
 			$js = preg_replace('%\s*/\*(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*+/%', '', $js);
 		}
 
-		$match_all = isset($match_all) ? $match_all : array();
+		$match_all = isset($match_all) ? $match_all : [];
 		/**
 		 * Doing progress
 		 */
@@ -586,7 +628,7 @@ class CssJsCombine
 			/**
 			 * Replace with real comments from @match_all from !Getting Real comment from input JS!
 			 */
-			$this->all_cached = preg_replace_callback('%(\s*/\*\!(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*/)%', function() use($match_all) {
+			$this->all_cached = preg_replace_callback('%(\s*/\*\!(?:[^*]|[\r\n]|(?:\*+(?:[^*/]|[\r\n])))*\*/)%', function () use ($match_all) {
 				static $d = 0;
 				// by default use empty
 				$text = '';
@@ -648,8 +690,8 @@ class CssJsCombine
 		// use str replace for fast method
 		if (! $allowed_conditional_comment) {
 			$this->all_cached = str_replace(
-				array("-\n", "+\n", ":\n", "\n["),
-				array('-','+',':','['),
+				["-\n", "+\n", ":\n", "\n["],
+				['-','+',':','['],
 				$this->all_cached
 			);
 		} else {
@@ -767,13 +809,13 @@ class CssJsCombine
 
 					// if B is a space we skip the rest of the switch block and go down to the
 					// string/regex check below, resetting $this->index_b with getReal
-					if($this->index_b === ' ') {
+					if ($this->index_b === ' ') {
 						break;
 					}
 
 				// otherwise we treat the newline like a space
 				case ' ':
-					if($this->isAlphaNumeric($this->index_b)) {
+					if ($this->isAlphaNumeric($this->index_b)) {
 						$this->all_cached .=  $this->index_a;
 					}
 
@@ -796,7 +838,7 @@ class CssJsCombine
 							break;
 
 						case ' ':
-							if(!$this->isAlphaNumeric($this->index_a)) {
+							if (!$this->isAlphaNumeric($this->index_a)) {
 								break;
 							}
 
@@ -816,7 +858,7 @@ class CssJsCombine
 			// do reg check of doom
 			$this->index_b = $this->getReal();
 
-			if(($this->index_b == '/' && strpos('(,=:[!&|?', $this->index_a) !== false)) {
+			if (($this->index_b == '/' && strpos('(,=:[!&|?', $this->index_a) !== false)) {
 				$this->saveRegex();
 			}
 		}
@@ -844,9 +886,9 @@ class CssJsCombine
 	public function cleanAll()
 	{
 		$this->cleanCached();
-		$this->index_locks = array();
+		$this->index_locks = [];
 		$this->all_cached = null;
-		$this->error_log = array();
+		$this->error_log = [];
 	}
 
 	/**
@@ -890,7 +932,7 @@ class CssJsCombine
 
 		// Normalize all whitespace except for the newline character into a
 		// standard space.
-		if($char !== "\n" && ord($char) < 32) {
+		if ($char !== "\n" && ord($char) < 32) {
 			return ' ';
 		}
 
@@ -917,7 +959,7 @@ class CssJsCombine
 		$pos = strpos($this->index_input, $string, $this->index_position);
 
 		// If it's not there return false.
-		if($pos === false) {
+		if ($pos === false) {
 			return false;
 		}
 
@@ -957,7 +999,6 @@ class CssJsCombine
 
 		// Loop until the string is done
 		while (1) {
-
 			// Grab the very next character and load it into a
 			$this->index_a = $this->getChar();
 			// exec this
@@ -965,7 +1006,6 @@ class CssJsCombine
 				return null;
 			}
 			switch ($this->index_a) {
-
 				// If the string opener (single or double quote) is used
 				// output it and break out of the while loop-
 				// The string is finished!
@@ -984,7 +1024,6 @@ class CssJsCombine
 
 				// Escaped characters get picked up here. If it's an escaped new line it's not really needed
 				case '\\':
-
 					// a is a slash. We want to keep it, and the next character,
 					// unless it's a new line. New lines as actual strings will be
 					// preserved, but escaped new lines should be reduced.
@@ -1024,7 +1063,7 @@ class CssJsCombine
 			if ($this->is_failed) {
 				return null;
 			}
-			if($this->index_a == '/') {
+			if ($this->index_a == '/') {
 				break;
 			}
 			if ($this->index_a == '\\') {
@@ -1032,7 +1071,7 @@ class CssJsCombine
 				$this->index_a = $this->getChar();
 			}
 
-			if($this->index_a == "\n") {
+			if ($this->index_a == "\n") {
 				$this->is_failed = true;
 				$this->error_log[] = ('Unclosed regex pattern at position: ' . $this->index_position);
 				return null;
@@ -1070,7 +1109,7 @@ class CssJsCombine
 
 		/* lock things like <code>"asd" + ++x;</code> */
 		$lock = '"LOCK---' . crc32(time()) . '"';
-		$matches = array();
+		$matches = [];
 		preg_match('/([+-])(\s+)([+-])/', $js, $matches);
 		if (empty($matches)) {
 			return $js;
@@ -1172,7 +1211,7 @@ class CssJsCombine
 	{
 		static $Protocol;
 
-		if (! $Protocol || ! in_array($Protocol, array('http', 'https'))) {
+		if (! $Protocol || ! in_array($Protocol, ['http', 'https'])) {
 			$Protocol = 'http';
 			if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https'
 			    || !empty($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] == 'https'
@@ -1212,7 +1251,7 @@ class CssJsCombine
 			}
 		}
 		if (is_string($path)) {
-			static $path_tmp = array();
+			static $path_tmp = [];
 			$path_tmp[$path] = isset($path_tmp[$path])
 				? $path_tmp[$path]
 				: preg_replace('/(\\\|\/)+/', '/', $path);
@@ -1298,7 +1337,8 @@ class CssJsCombine
 						strlen(
 							realpath(dirname($_SERVER['SCRIPT_NAME']))
 						),
-						'/')
+						'/'
+					)
 					)
 				)
 				);
